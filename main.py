@@ -212,6 +212,7 @@ def consume_search(uid):
 
 
 async def search_music(update, context):
+    """Search YouTube metadata and let the user choose a numbered result."""
     if not await require_channel(update, context):
         return
     query = update.effective_message.text.strip()
@@ -223,28 +224,97 @@ async def search_music(update, context):
         return
     status = await update.effective_message.reply_text("🔎 Searching music...")
     try:
-        opts = {"quiet": True, "no_warnings": True, "skip_download": True,
-                "extract_flat": True, "default_search": "ytsearch5"}
+        opts = {
+            "quiet": True, "no_warnings": True, "skip_download": True,
+            "extract_flat": True, "default_search": "ytsearch10"
+        }
         with YoutubeDL(opts) as ydl:
             info = ydl.extract_info(query, download=False)
         entries = (info or {}).get("entries") or []
-        if not entries:
-            await status.edit_text("No results found. Try another song or artist.")
-            return
-        lines = ["🎵 Search results:"]
-        for i, item in enumerate(entries[:5], 1):
-            title = item.get("title") or "Unknown title"
-            channel = item.get("uploader") or item.get("channel") or "Unknown artist"
-            duration = item.get("duration")
-            duration_text = f"{int(duration)//60}:{int(duration)%60:02d}" if duration else "Unknown"
-            url = item.get("url") or item.get("webpage_url")
+        results = []
+        for item in entries[:10]:
+            video_id = item.get("id")
+            url = item.get("webpage_url") or item.get("url")
             if url and not str(url).startswith("http"):
                 url = "https://www.youtube.com/watch?v=" + str(url)
-            lines.append(f"{i}. {title}\n👤 {channel} · ⏱ {duration_text}\n▶️ {url or 'Search on YouTube'}")
-        await status.edit_text(("\n\n".join(lines))[:4000] + (f"\n\n{note}" if note else ""))
+            if not url and video_id:
+                url = "https://www.youtube.com/watch?v=" + str(video_id)
+            if not url:
+                continue
+            results.append({
+                "title": item.get("title") or "Unknown title",
+                "artist": item.get("uploader") or item.get("channel") or "Unknown artist",
+                "duration": item.get("duration"),
+                "url": url
+            })
+        if not results:
+            await status.edit_text("No results found. Try another song or artist.")
+            return
+        context.user_data["music_results"] = results
+        context.user_data["music_query"] = query
+        keyboard = []
+        for i, item in enumerate(results):
+            duration = item["duration"]
+            dtext = f"{int(duration)//60}:{int(duration)%60:02d}" if duration else "--:--"
+            label = f"{i+1}. {item['title'][:24]} · {dtext}"
+            keyboard.append([InlineKeyboardButton(label, callback_data=f"pick:{i}")])
+        keyboard.append([InlineKeyboardButton("🔎 Search another song", callback_data="search_help")])
+        heading = f"🎵 Results for: {query}\n\nChoose the song you want:"
+        if note:
+            heading += f"\n\n{note}"
+        await status.edit_text(heading, reply_markup=InlineKeyboardMarkup(keyboard))
     except Exception:
         log.exception("Music search failed")
         await status.edit_text("Search is temporarily unavailable. Please try again later.")
+
+
+async def pick_music(update, context):
+    q = update.callback_query
+    await q.answer()
+    if not await channel_ok(context, q.from_user.id):
+        return await q.edit_message_text(
+            "Please join our channel first: https://t.me/zayyasearchmusic"
+        )
+    try:
+        index = int(q.data.split(":", 1)[1])
+        results = context.user_data.get("music_results", [])
+        item = results[index]
+    except (ValueError, IndexError, TypeError):
+        return await q.edit_message_text("This search has expired. Send the song name again.")
+    duration = item["duration"]
+    dtext = f"{int(duration)//60}:{int(duration)%60:02d}" if duration else "Unknown"
+    text = (
+        f"🎶 Selected music\n\n"
+        f"🎵 {item['title']}\n"
+        f"👤 {item['artist']}\n"
+        f"⏱ Duration: {dtext}\n\n"
+        f"▶️ Listen here: {item['url']}\n\n"
+        "This is an official platform listening link; the bot does not download or send copyrighted audio."
+    )
+    keyboard = [
+        [InlineKeyboardButton("▶️ Open music", url=item["url"])],
+        [InlineKeyboardButton("⬅️ Back to results", callback_data="back_results")],
+        [InlineKeyboardButton("🔎 Search another song", callback_data="search_help")]
+    ]
+    await q.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def back_results(update, context):
+    q = update.callback_query
+    await q.answer()
+    if not await channel_ok(context, q.from_user.id):
+        return await q.edit_message_text("Please join our channel first: https://t.me/zayyasearchmusic")
+    results = context.user_data.get("music_results", [])
+    query = context.user_data.get("music_query", "")
+    if not results:
+        return await q.edit_message_text("This search has expired. Send the song name again.")
+    keyboard = []
+    for i, item in enumerate(results):
+        duration = item["duration"]
+        dtext = f"{int(duration)//60}:{int(duration)%60:02d}" if duration else "--:--"
+        keyboard.append([InlineKeyboardButton(f"{i+1}. {item['title'][:24]} · {dtext}", callback_data=f"pick:{i}")])
+    keyboard.append([InlineKeyboardButton("🔎 Search another song", callback_data="search_help")])
+    await q.edit_message_text(f"🎵 Results for: {query}\n\nChoose the song you want:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def photo_payment(update, context):
@@ -432,6 +502,8 @@ def main():
     app.add_handler(CommandHandler("redeem", redeem_cmd))
     app.add_handler(CommandHandler("stats", stats_cmd))
     app.add_handler(CallbackQueryHandler(menu_callback, pattern="^(verify_channel|account|invite|upgrade_info|search_help|coupon_help|help|home)$"))
+    app.add_handler(CallbackQueryHandler(pick_music, pattern="^pick:[0-9]+$"))
+    app.add_handler(CallbackQueryHandler(back_results, pattern="^back_results$"))
     app.add_handler(CallbackQueryHandler(admin_menu, pattern="^admin_(users|upgrade)$"))
     app.add_handler(CallbackQueryHandler(quick_upgrade, pattern="^quickup:"))
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^(approve|reject):"))

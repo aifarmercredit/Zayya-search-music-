@@ -253,11 +253,17 @@ async def search_music(update, context):
         context.user_data["music_results"] = results
         context.user_data["music_query"] = query
         keyboard = []
+        row_buttons = []
         for i, item in enumerate(results):
             duration = item["duration"]
             dtext = f"{int(duration)//60}:{int(duration)%60:02d}" if duration else "--:--"
-            label = f"{i+1}. {item['title'][:24]} · {dtext}"
-            keyboard.append([InlineKeyboardButton(label, callback_data=f"pick:{i}")])
+            label = f"{i+1}. {item['title'][:17]} · {dtext}"
+            row_buttons.append(InlineKeyboardButton(label, callback_data=f"pick:{i}"))
+            if len(row_buttons) == 2:
+                keyboard.append(row_buttons)
+                row_buttons = []
+        if row_buttons:
+            keyboard.append(row_buttons)
         keyboard.append([InlineKeyboardButton("🔎 Search another song", callback_data="search_help")])
         heading = f"🎵 Results for: {query}\n\nChoose the song you want:"
         if note:
@@ -309,10 +315,16 @@ async def back_results(update, context):
     if not results:
         return await q.edit_message_text("This search has expired. Send the song name again.")
     keyboard = []
+    row_buttons = []
     for i, item in enumerate(results):
         duration = item["duration"]
         dtext = f"{int(duration)//60}:{int(duration)%60:02d}" if duration else "--:--"
-        keyboard.append([InlineKeyboardButton(f"{i+1}. {item['title'][:24]} · {dtext}", callback_data=f"pick:{i}")])
+        row_buttons.append(InlineKeyboardButton(f"{i+1}. {item['title'][:17]} · {dtext}", callback_data=f"pick:{i}"))
+        if len(row_buttons) == 2:
+            keyboard.append(row_buttons)
+            row_buttons = []
+    if row_buttons:
+        keyboard.append(row_buttons)
     keyboard.append([InlineKeyboardButton("🔎 Search another song", callback_data="search_help")])
     await q.edit_message_text(f"🎵 Results for: {query}\n\nChoose the song you want:", reply_markup=InlineKeyboardMarkup(keyboard))
 

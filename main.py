@@ -25,7 +25,25 @@ log = logging.getLogger("zayya-music")
 
 
 def db():
-    con = sqlite3.connect(DB_PATH)
+    # Ensure the configured database folder exists. For /var/data, Render
+    # must have a Persistent Disk mounted at /var/data.
+    db_dir = os.path.dirname(os.path.abspath(DB_PATH))
+    try:
+        os.makedirs(db_dir, exist_ok=True)
+    except OSError as exc:
+        raise RuntimeError(
+            f"Cannot access database folder '{db_dir}'. "
+            "In Render, add a Persistent Disk and set its Mount Path to /var/data, "
+            "then set DATABASE_PATH=/var/data/zayya_music.db."
+        ) from exc
+    try:
+        con = sqlite3.connect(DB_PATH)
+    except sqlite3.OperationalError as exc:
+        raise RuntimeError(
+            f"Cannot open SQLite database at '{DB_PATH}'. "
+            "Check that Render Persistent Disk is mounted at /var/data "
+            "and DATABASE_PATH is /var/data/zayya_music.db."
+        ) from exc
     con.row_factory = sqlite3.Row
     return con
 

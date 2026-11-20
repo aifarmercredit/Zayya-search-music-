@@ -4,7 +4,7 @@ Telegram music discovery bot. It searches YouTube metadata and returns listening
 
 ## Features
 - Mandatory membership check for [@zayyasearchmusic](https://t.me/zayyasearchmusic)
-- Search by song title or artist; up to five results with duration and listening link
+- Search by song title or artist; up to ten numbered results; users tap a number to select a song and open its listening link with duration and listening link
 - Free plan: 10 searches per UTC day
 - Referral credits: one credit per new referred user
 - Premium: 200 ETB / 30 days; payment proof is sent to the configured admin for manual review

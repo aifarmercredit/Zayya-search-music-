@@ -1,0 +1,30 @@
+services:
+  - type: worker
+    name: zayya-search-music
+    runtime: python
+    plan: starter
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    autoDeploy: true
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: ADMIN_USER_ID
+        sync: false
+      - key: CHANNEL_USERNAME
+        value: "@zayyasearchmusic"
+      - key: TELEBIRR_NAME
+        value: "Amir Ali"
+      - key: TELEBIRR_PHONE
+        value: "0967757546"
+      - key: MONTHLY_PRICE
+        value: "200"
+      - key: DAILY_FREE_SEARCHES
+        value: "10"
+      - key: DATABASE_PATH
+        value: "/var/data/zayya_music.db"
+    disk:
+      name: zayya-music-data
+      mountPath: /var/data
+      sizeGB: 1
